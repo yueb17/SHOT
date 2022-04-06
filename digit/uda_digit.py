@@ -433,11 +433,11 @@ if __name__ == "__main__":
     args.class_num = 10
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
-    SEED = args.seed
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
-    np.random.seed(SEED)
-    random.seed(SEED)
+    # SEED = args.seed
+    # torch.manual_seed(SEED)
+    # torch.cuda.manual_seed(SEED)
+    # np.random.seed(SEED)
+    # random.seed(SEED)
     # torch.backends.cudnn.deterministic = True
 
     args.output_dir = osp.join(args.output, 'seed' + str(args.seed), args.dset)

@@ -24,7 +24,7 @@ class feat_bootleneck(nn.Module):
     def __init__(self, feature_dim, bottleneck_dim=256, type="ori"):
         super(feat_bootleneck, self).__init__()
         self.bn = nn.BatchNorm1d(bottleneck_dim, affine=True)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.0)
         self.bottleneck = nn.Linear(feature_dim, bottleneck_dim)
         self.bottleneck.apply(init_weights)
         self.type = type
@@ -55,15 +55,15 @@ class DTNBase(nn.Module):
         self.conv_params = nn.Sequential(
                 nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2),
                 nn.BatchNorm2d(64),
-                nn.Dropout2d(0.1),
+                nn.Dropout2d(0.0),
                 nn.ReLU(),
                 nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2),
                 nn.BatchNorm2d(128),
-                nn.Dropout2d(0.3),
+                nn.Dropout2d(0.0),
                 nn.ReLU(),
                 nn.Conv2d(128, 256, kernel_size=5, stride=2, padding=2),
                 nn.BatchNorm2d(256),
-                nn.Dropout2d(0.5),
+                nn.Dropout2d(0.0),
                 nn.ReLU()
                 )   
         self.in_features = 256*4*4
@@ -81,7 +81,7 @@ class LeNetBase(nn.Module):
                 nn.MaxPool2d(2),
                 nn.ReLU(),
                 nn.Conv2d(20, 50, kernel_size=5),
-                nn.Dropout2d(p=0.5),
+                nn.Dropout2d(p=0.0),
                 nn.MaxPool2d(2),
                 nn.ReLU(),
                 )
