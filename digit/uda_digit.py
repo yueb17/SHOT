@@ -142,6 +142,7 @@ def cal_acc(loader, netF, netB, netC):
     return accuracy*100, mean_ent
 
 def train_source(args):
+    print('==> Start train source')
     dset_loaders = digit_load(args)
     ## set base network
     if args.dset == 'u2m':
@@ -223,6 +224,7 @@ def train_source(args):
     return netF, netB, netC
 
 def test_target(args):
+    print('==> Start test target')
     dset_loaders = digit_load(args)
     ## set base network
     if args.dset == 'u2m':
@@ -258,6 +260,7 @@ def print_args(args):
     return s
 
 def train_target(args):
+    print('==>Start train target')
     dset_loaders = digit_load(args)
     ## set base network
     if args.dset == 'u2m':
@@ -457,4 +460,5 @@ if __name__ == "__main__":
     args.out_file = open(osp.join(args.output_dir, 'log_tar_' + args.savename + '.txt'), 'w')
     args.out_file.write(print_args(args)+'\n')
     args.out_file.flush()
+    test_target(args)
     train_target(args)
