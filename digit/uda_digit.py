@@ -311,7 +311,19 @@ def train_target(args):
 
         print("==> Obtain pruner")
         pruner = pruner_dict[args.pruner_s].Pruner(netF, args)
-        pruner.prune()
+
+        if args.pruner_s == 'l1':
+            print("==> Using l1")
+            pruner.prune()
+        elif args.pruner_s == 't_snip':
+            print("==> Using target snip")
+            pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['target'], torch.device("cuda:0"))
+        elif args.pruner_s == 's_snip':
+            print("==> Using source snip")
+            pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['source_tr'], torch.device("cuda:0"))
+        else:
+            raise NotImplementedError
+
         print("==> Prune once")
         check_sparsity(netF)
         apply_mask_forward(netF, pruner.mask)
@@ -490,9 +502,14 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, default='')
     parser.add_argument('--issave', type=bool, default=True)
 
-    parser.add_argument('--pruner_s', type=str, default='full', choices=['full', 'l1'])
+    parser.add_argument('--pruner_s', type=str, default='full', choices=['full', 'l1', 't_snip', 's_snip'])
     parser.add_argument('--stage_pr', type=str, default="")
     parser.add_argument('--pick_pruned', type=str, default='min', choices=['min', 'max', 'rand'])
+
+    parser.add_argument('--global_pr', type=float)
+    parser.add_argument('--dd_loss', type=str)
+    parser.add_argument('--dd_gent', type=bool, default=True)
+
     args = parser.parse_args()
     args.class_num = 10
 
