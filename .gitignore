@@ -1,2 +1,4 @@
 */ckps_digits/*
 data/
+*.csv
+*.sh
