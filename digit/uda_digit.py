@@ -344,6 +344,7 @@ def train_target(args):
     interval_iter = len(dset_loaders["target"])
     # interval_iter = max_iter // args.interval
     iter_num = 0
+    best_test_acc = 0
 
     while iter_num < max_iter:
         optimizer.zero_grad()
@@ -405,10 +406,15 @@ def train_target(args):
             netF.train()
             netB.train()
 
+            if acc >= best_test_acc:
+                best_test_acc = acc
+
     if args.issave:
         torch.save(netF.state_dict(), osp.join(args.output_dir, "target_F_" + args.savename + ".pt"))
         torch.save(netB.state_dict(), osp.join(args.output_dir, "target_B_" + args.savename + ".pt"))
         torch.save(netC.state_dict(), osp.join(args.output_dir, "target_C_" + args.savename + ".pt"))
+
+    print('==> Best test acc:', best_test_acc)
 
     return netF, netB, netC
 
