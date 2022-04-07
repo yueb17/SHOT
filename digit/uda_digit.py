@@ -455,16 +455,16 @@ def train_target(args):
         torch.save(netC.state_dict(), osp.join(args.output_dir, "target_C_" + args.savename + ".pt"))
 
     print('==> Best test acc:', best_test_acc)
-
-    write_result_to_csv(args,
-        seed=args.seed,
-        dataset=args.dset,
-        pruner_s=args.pruner_s,
-        stage_pr=args.stage_pr,
-        global_pr=args.global_pr,
-        dd_loss=args.dd_loss,
-        best_acc=best_test_acc,
-        )
+    if args.save_acc == True:
+        write_result_to_csv(args,
+            seed=args.seed,
+            dataset=args.dset,
+            pruner_s=args.pruner_s,
+            stage_pr=args.stage_pr,
+            global_pr=args.global_pr,
+            dd_loss=args.dd_loss,
+            best_acc=best_test_acc,
+            )
 
 
     return netF, netB, netC
