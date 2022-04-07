@@ -17,6 +17,7 @@ from data_load import mnist, svhn, usps
 
 from pruner import pruner_dict
 from pdb import set_trace as st
+import pathlib
 
 def apply_mask_forward(model, mask):
             for name, m in model.named_modules():
@@ -29,6 +30,33 @@ def check_sparsity(model):
                 if hasattr(module.weight, 'data'):
                     zero_pos = torch.nonzero(module.weight.data == 0)
                     print(name, 'sparsity:', len(zero_pos)/module.weight.data.numel())
+
+def write_result_to_csv(args, **kwargs):
+    results = pathlib.Path(args.save_file)
+
+    if not results.exists():
+        results.write_text(
+            "seed, "
+            "dataset, "
+            "pruner_s, "
+            "stage_pr, "
+            "global_pr, "
+            "dd_loss, "
+            "best_acc\n "
+        )
+
+    with open(results, "a+") as f:
+        f.write(
+            (
+                "{seed}, "
+                "{dataset}, "
+                "{pruner_s}, "
+                "{stage_pr}, "
+                "{global_pr}, "
+                "{dd_loss}, "
+                "{best_acc:.02f}\n"
+            ).format(**kwargs)
+        )
 
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
@@ -428,6 +456,17 @@ def train_target(args):
 
     print('==> Best test acc:', best_test_acc)
 
+    write_result_to_csv(args,
+        seed=args.seed,
+        dataset=args.dset,
+        pruner_s=args.pruner_s,
+        stage_pr=args.stage_pr,
+        global_pr=args.global_pr,
+        dd_loss=args.dd_loss,
+        best_acc=best_test_acc,
+        )
+
+
     return netF, netB, netC
 
 def obtain_label(loader, netF, netB, netC, args, c=None):
@@ -506,9 +545,12 @@ if __name__ == "__main__":
     parser.add_argument('--stage_pr', type=str, default="")
     parser.add_argument('--pick_pruned', type=str, default='min', choices=['min', 'max', 'rand'])
 
-    parser.add_argument('--global_pr', type=float)
-    parser.add_argument('--dd_loss', type=str)
+    parser.add_argument('--global_pr', type=float, default=0.0)
+    parser.add_argument('--dd_loss', type=str, default='', choices=['', 'label', 'ent', 'mix'])
     parser.add_argument('--dd_gent', type=bool, default=True)
+
+    parser.add_argument('--save_acc', type=bool, default=False)
+    parser.add_argument('--save_file', type=str)
 
     args = parser.parse_args()
     args.class_num = 10

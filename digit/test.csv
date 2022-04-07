@@ -1,0 +1,4 @@
+seed, dataset, pruner_s, stage_pr, global_pr, dd_loss, best_acc
+ 2020, m2u, s_snip, , 0.95, ent, 82.42
+2020, m2u, s_snip, , 0.95, ent, 92.42
+2020, m2u, t_snip, , 0.95, ent, 95.65
