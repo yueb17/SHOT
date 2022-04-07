@@ -15,6 +15,21 @@ from scipy.spatial.distance import cdist
 import pickle
 from data_load import mnist, svhn, usps
 
+from pruner import pruner_dict
+from pdb import set_trace as st
+
+def apply_mask_forward(model, mask):
+            for name, m in model.named_modules():
+                if name in mask:
+                    m.weight.data.mul_(mask[name])
+
+def check_sparsity(model):
+        for name, module in model.named_modules():
+            if hasattr(module, 'weight'):
+                if hasattr(module.weight, 'data'):
+                    zero_pos = torch.nonzero(module.weight.data == 0)
+                    print(name, 'sparsity:', len(zero_pos)/module.weight.data.numel())
+
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
         param_group['lr0'] = param_group['lr']
@@ -260,7 +275,7 @@ def print_args(args):
     return s
 
 def train_target(args):
-    print('==>Start train target')
+    print('==> Start train target')
     dset_loaders = digit_load(args)
     ## set base network
     if args.dset == 'u2m':
@@ -279,6 +294,37 @@ def train_target(args):
     netB.load_state_dict(torch.load(args.modelpath))
     args.modelpath = args.output_dir + '/source_C.pt'    
     netC.load_state_dict(torch.load(args.modelpath))
+    
+    # add potential prune pretrained source model
+    if args.pruner_s != 'full':
+        print("==> Start prune pretrained source model using:", args.pruner_s)
+
+        print("==> Check acc before pruning")
+        netF.eval()
+        netB.eval()
+        netC.eval()
+        acc, _ = cal_acc(dset_loaders['test'], netF, netB, netC)
+        print('Acc:', acc)
+        netF.train()
+        netB.train()
+        netC.train()
+
+        print("==> Obtain pruner")
+        pruner = pruner_dict[args.pruner_s].Pruner(netF, args)
+        pruner.prune()
+        print("==> Prune once")
+        apply_mask_forward(netF, pruner.mask)
+        
+        print("==> Check acc just after pruning")
+        netF.eval()
+        netB.eval()
+        netC.eval()
+        acc, _ = cal_acc(dset_loaders['test'], netF, netB, netC)
+        print('Acc:', acc)
+        netF.train()
+        netB.train()
+        netC.train()
+
     netC.eval()
     for k, v in netC.named_parameters():
         v.requires_grad = False
@@ -432,6 +478,10 @@ if __name__ == "__main__":
     parser.add_argument('--smooth', type=float, default=0.1)   
     parser.add_argument('--output', type=str, default='')
     parser.add_argument('--issave', type=bool, default=True)
+
+    parser.add_argument('--pruner_s', type=str, default='full', choices=['full', 'l1'])
+    parser.add_argument('--stage_pr', type=str, default="")
+    parser.add_argument('--pick_pruned', type=str, default='min', choices=['min', 'max', 'rand'])
     args = parser.parse_args()
     args.class_num = 10
 
