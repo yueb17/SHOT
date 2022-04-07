@@ -313,8 +313,10 @@ def train_target(args):
         pruner = pruner_dict[args.pruner_s].Pruner(netF, args)
         pruner.prune()
         print("==> Prune once")
+        check_sparsity(netF)
         apply_mask_forward(netF, pruner.mask)
-        
+        check_sparsity(netF)
+
         print("==> Check acc just after pruning")
         netF.eval()
         netB.eval()
@@ -388,6 +390,9 @@ def train_target(args):
         optimizer.zero_grad()
         classifier_loss.backward()
         optimizer.step()
+
+        if args.pruner_s != 'full':
+            apply_mask_forward(netF, pruner.mask)
 
         if iter_num % interval_iter == 0 or iter_num == max_iter:
             netF.eval()
