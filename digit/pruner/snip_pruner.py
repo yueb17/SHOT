@@ -77,6 +77,8 @@ class Pruner(MetaPruner):
                 msoftmax = softmax_out.mean(dim=0)
                 entropy_loss -= torch.sum(-msoftmax * torch.log(msoftmax + 1e-5))
             loss = label_loss + entropy_loss
+        else:
+            raise NotImplementedError
 
         loss.backward()
         # st()

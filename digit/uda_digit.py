@@ -39,6 +39,7 @@ def write_result_to_csv(args, **kwargs):
             "seed, "
             "dataset, "
             "pruner_s, "
+            "pruner_t, "
             "stage_pr, "
             "global_pr, "
             "dd_loss, "
@@ -324,7 +325,9 @@ def train_target(args):
     netC.load_state_dict(torch.load(args.modelpath))
     
     # add potential prune pretrained source model
-    if args.pruner_s != 'full':
+    if args.pruner_s == 'full':
+    	print('NOT prune source pretrained model before target finetune')
+    else:
         print("==> Start prune pretrained source model using:", args.pruner_s)
 
         print("==> Check acc before pruning")
@@ -454,18 +457,136 @@ def train_target(args):
         torch.save(netB.state_dict(), osp.join(args.output_dir, "target_B_" + args.savename + ".pt"))
         torch.save(netC.state_dict(), osp.join(args.output_dir, "target_C_" + args.savename + ".pt"))
 
-    print('==> Best test acc:', best_test_acc)
-    if args.save_acc == True:
+    print('Best test acc:', best_test_acc)
+    print('Last test acc:', acc)
+
+
+    if args.pruner_t == 'non':
+        print('NO pruning target model and finetune')
+    else:
+        print('==> Start pruning pre-pretrained target model')
+        print('==> Check acc before pruning')
+        netF.eval()
+        netB.eval()
+        netC.eval()
+        acc, _ = cal_acc(dset_loaders['test'], netF, netB, netC)
+        print('Acc:', acc)
+        netF.train()
+        netB.train()
+        netC.train()
+
+        print("==> Obtain pruner for target model")
+        pruner = pruner_dict[args.pruner_t].Pruner(netF, args)
+
+        if args.pruner_t == 'l1':
+            print("==> Using l1")
+            pruner.prune()
+        elif args.pruner_t == 't_snip':
+            print("==> Using target snip")
+            pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['target'], torch.device("cuda:0"))
+        elif args.pruner_t == 's_snip':
+            print("==> Using source snip")
+            pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['source_tr'], torch.device("cuda:0"))
+        else:
+            raise NotImplementedError
+
+        print("==> Prune once")
+        check_sparsity(netF)
+        apply_mask_forward(netF, pruner.mask)
+        check_sparsity(netF)
+
+        print("==> Check acc just after pruning")
+        netF.eval()
+        netB.eval()
+        netC.eval()
+        acc, _ = cal_acc(dset_loaders['test'], netF, netB, netC)
+        print('Acc:', acc)
+        netF.train()
+        netB.train()
+        netC.train()
+
+        print('==> Start target pruned finetuning')
+        netC.eval()
+        for k, v in netC.named_parameters():
+            v.requires_grad = False
+
+        param_group = []
+        for k, v in netF.named_parameters():
+            param_group += [{'params': v, 'lr': args.lr}]
+        for k, v in netB.named_parameters():
+            param_group += [{'params': v, 'lr': args.lr}]
+
+        optimizer = optim.SGD(param_group)
+        optimizer = op_copy(optimizer)
+
+        max_iter = args.max_epoch * len(dset_loaders['target'])
+        interval_iter = len(dset_loaders["target"])
+        iter_num = 0
+        best_test_acc = 0
+
+        while iter_num < max_iter:
+            optimizer.zero_grad()
+            try:
+                inputs_test, _, tar_idx = iter_test.next()
+            except:
+                iter_test = iter(dset_loaders["target"])
+                inputs_test, _, tar_idx = iter_test.next()
+
+            if inputs_test.size(0) == 1:
+                continue
+
+            iter_num += 1
+            lr_scheduler(optimizer, iter_num=iter_num, max_iter=max_iter)
+
+            inputs_test = inputs_test.cuda()
+            features_test = netB(netF(inputs_test))
+            outputs_test = netC(features_test)
+
+            classifier_loss = torch.tensor(0.0).cuda()
+
+            if args.ent:
+                softmax_out = nn.Softmax(dim=1)(outputs_test)
+                entropy_loss = torch.mean(loss.Entropy(softmax_out))
+                if args.gent:
+                    msoftmax = softmax_out.mean(dim=0)
+                    entropy_loss -= torch.sum(-msoftmax * torch.log(msoftmax + 1e-5))
+
+                im_loss = entropy_loss * args.ent_par
+                classifier_loss += im_loss
+
+            optimizer.zero_grad()
+            classifier_loss.backward()
+            optimizer.step()
+
+            if args.pruner_t != 'non':
+                apply_mask_forward(netF, pruner.mask)
+
+            if iter_num % interval_iter == 0 or iter_num == max_iter:
+                netF.eval()
+                netB.eval()
+                acc, _ = cal_acc(dset_loaders['test'], netF, netB, netC)
+                log_str = 'Task: {}, Iter:{}/{}; Accuracy = {:.2f}%'.format(args.dset, iter_num, max_iter, acc)
+                print(log_str+'\n')
+                netF.train()
+                netB.train()
+
+                if acc >= best_test_acc:
+                    best_test_acc = acc
+
+    print('Best test acc:', best_test_acc)
+
+    if args.save_acc:
+        print('==> Saving results')
         write_result_to_csv(args,
             seed=args.seed,
             dataset=args.dset,
             pruner_s=args.pruner_s,
+            pruner_t=args.pruner_t,
             stage_pr=args.stage_pr,
             global_pr=args.global_pr,
             dd_loss=args.dd_loss,
             best_acc=best_test_acc,
             )
-
 
     return netF, netB, netC
 
@@ -549,8 +670,10 @@ if __name__ == "__main__":
     parser.add_argument('--dd_loss', type=str, default='', choices=['', 'label', 'ent', 'mix'])
     parser.add_argument('--dd_gent', type=bool, default=True)
 
-    parser.add_argument('--save_acc', type=bool, default=False)
+    parser.add_argument('--save_acc', action='store_true')
     parser.add_argument('--save_file', type=str)
+
+    parser.add_argument('--pruner_t', type=str, default='non', choices=['non', 'l1', 't_snip', 's_snip'])
 
     args = parser.parse_args()
     args.class_num = 10
