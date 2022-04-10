@@ -52,6 +52,7 @@ def write_result_to_csv(args, **kwargs):
                 "{seed}, "
                 "{dataset}, "
                 "{pruner_s}, "
+                "{pruner_t}, "
                 "{stage_pr}, "
                 "{global_pr}, "
                 "{dd_loss}, "
