@@ -393,10 +393,10 @@ def train_target(args):
     while iter_num < max_iter:
         optimizer.zero_grad()
         try:
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, labels_test, tar_idx = iter_test.next()
         except:
             iter_test = iter(dset_loaders["target"])
-            inputs_test, _, tar_idx = iter_test.next()
+            inputs_test, labels_test, tar_idx = iter_test.next()
 
         if inputs_test.size(0) == 1:
             continue
@@ -413,6 +413,7 @@ def train_target(args):
         lr_scheduler(optimizer, iter_num=iter_num, max_iter=max_iter)
 
         inputs_test = inputs_test.cuda()
+        labels_test = labels_test.cuda()
         features_test = netB(netF(inputs_test))
         outputs_test = netC(features_test)
 
@@ -431,6 +432,10 @@ def train_target(args):
 
             im_loss = entropy_loss * args.ent_par
             classifier_loss += im_loss
+
+        if args.supervised_target:
+        	label_loss = loss.CrossEntropyLabelSmooth(num_classes=args.class_num, epsilon=args.smooth)(outputs_test, labels_test)
+        	classifier_loss += label_loss
 
         optimizer.zero_grad()
         classifier_loss.backward()
@@ -675,6 +680,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_file', type=str)
 
     parser.add_argument('--pruner_t', type=str, default='non', choices=['non', 'l1', 't_snip', 's_snip'])
+    parser.add_argument('--supervised_target', action='store_true')
 
     args = parser.parse_args()
     args.class_num = 10
