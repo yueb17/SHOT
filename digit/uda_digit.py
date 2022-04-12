@@ -19,47 +19,6 @@ from pruner import pruner_dict
 from pdb import set_trace as st
 import pathlib
 
-def apply_mask_forward(model, mask):
-            for name, m in model.named_modules():
-                if name in mask:
-                    m.weight.data.mul_(mask[name])
-
-def check_sparsity(model):
-        for name, module in model.named_modules():
-            if hasattr(module, 'weight'):
-                if hasattr(module.weight, 'data'):
-                    zero_pos = torch.nonzero(module.weight.data == 0)
-                    print(name, 'sparsity:', len(zero_pos)/module.weight.data.numel())
-
-def write_result_to_csv(args, **kwargs):
-    results = pathlib.Path(args.save_file)
-
-    if not results.exists():
-        results.write_text(
-            "seed, "
-            "dataset, "
-            "pruner_s, "
-            "pruner_t, "
-            "stage_pr, "
-            "global_pr, "
-            "dd_loss, "
-            "best_acc\n "
-        )
-
-    with open(results, "a+") as f:
-        f.write(
-            (
-                "{seed}, "
-                "{dataset}, "
-                "{pruner_s}, "
-                "{pruner_t}, "
-                "{stage_pr}, "
-                "{global_pr}, "
-                "{dd_loss}, "
-                "{best_acc:.02f}\n"
-            ).format(**kwargs)
-        )
-
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
         param_group['lr0'] = param_group['lr']
