@@ -19,6 +19,9 @@ from pruner import pruner_dict
 from pdb import set_trace as st
 import pathlib
 
+from utils import apply_mask_forward, check_sparsity
+from utils import write_result_to_csv
+
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
         param_group['lr0'] = param_group['lr']
