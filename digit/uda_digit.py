@@ -21,6 +21,8 @@ import pathlib
 
 from utils import apply_mask_forward, check_sparsity
 from utils import write_result_to_csv
+from utils import proxy_a_distance, cal_a_dis
+from utils import cal_acc
 
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
@@ -125,28 +127,6 @@ def digit_load(args):
     dset_loaders["test"] = DataLoader(test_target, batch_size=train_bs*2, shuffle=False, 
         num_workers=args.worker, drop_last=False)
     return dset_loaders
-
-def cal_acc(loader, netF, netB, netC):
-    start_test = True
-    with torch.no_grad():
-        iter_test = iter(loader)
-        for i in range(len(loader)):
-            data = iter_test.next()
-            inputs = data[0]
-            labels = data[1]
-            inputs = inputs.cuda()
-            outputs = netC(netB(netF(inputs)))
-            if start_test:
-                all_output = outputs.float().cpu()
-                all_label = labels.float()
-                start_test = False
-            else:
-                all_output = torch.cat((all_output, outputs.float().cpu()), 0)
-                all_label = torch.cat((all_label, labels.float()), 0)
-    _, predict = torch.max(all_output, 1)
-    accuracy = torch.sum(torch.squeeze(predict).float() == all_label).item() / float(all_label.size()[0])
-    mean_ent = torch.mean(loss.Entropy(nn.Softmax(dim=1)(all_output))).cpu().data.item()
-    return accuracy*100, mean_ent
 
 def train_source(args):
     print('==> Start train source')
@@ -286,6 +266,8 @@ def train_target(args):
     netB.load_state_dict(torch.load(args.modelpath))
     args.modelpath = args.output_dir + '/source_C.pt'    
     netC.load_state_dict(torch.load(args.modelpath))
+
+    cal_a_dis(netF, netB, dset_loaders['source_tr'], dset_loaders['target'])
     
     # add potential prune pretrained source model
     if args.pruner_s == 'full':
