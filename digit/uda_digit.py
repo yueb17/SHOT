@@ -273,11 +273,12 @@ def train_target(args):
     # add potential prune pretrained source model
     if args.pruner_s == 'non':
     	print('NOT prune S pretrained model before T finetune')
+    	mask = 'no mask'
     else:
         print("==> Start prune S pretrained model using:", args.pruner_s)
 
         print("==> Check acc before pruning")
-        vanilla_test(dset_loaders['test'], netF, netB, netC)
+        vanilla_test(args, dset_loaders['test'], netF, netB, netC)
 
         print('==> Obtain pruner for source model')
         mask = pruner_to_prune(args, netF, netB, netC, args.pruner_s, dset_loaders)
@@ -288,10 +289,10 @@ def train_target(args):
         check_sparsity(netF)
 
         print("==> Check acc just after pruning")
-        vanilla_test(dset_loader['test'], netF, netB, netC)
+        vanilla_test(args, dset_loader['test'], netF, netB, netC)
 
     print('==> Finetune T')
-    netF, netB, netC = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['target'])
+    netF, netB, netC = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['target'], dset_loaders['test'])
 
     if args.pruner_t == 'non':
         print('NO prune T model')
@@ -299,7 +300,7 @@ def train_target(args):
         print('==> Start prune pre-pretrained T model')
 
         print('==> Check acc before pruning')
-        vanilla_test(dset_loaders['test'], netF, netB, netC)
+        vanilla_test(args, dset_loaders['test'], netF, netB, netC)
 
         print("==> Obtain pruner for T model")
         mask = pruner_to_prune(args, netF, netB, netC, args.pruner_t, dset_loaders)
@@ -310,10 +311,10 @@ def train_target(args):
         check_sparsity(netF)
 
         print("==> Check acc just after pruning")
-        vanilla_test(dset_loader['test'], netF, netB, netC)
+        vanilla_test(args, dset_loaders['test'], netF, netB, netC)
 
         print('==> Start T pruned finetuning')
-        netF, netB, netC = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['target'])
+        netF, netB, netC = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['target'], dset_loaders['test'])
 
 
     if args.save_acc:
@@ -351,13 +352,13 @@ def vanilla_test(args, loader, netF, netB, netC):
 	netF.eval()
 	netB.eval()
 	netC.eval()
-	acc, _ cal_acc(loader, netF, netB, netC)
+	acc, _ = cal_acc(loader, netF, netB, netC)
 	print('Acc:', acc)
 	netF.train()
 	netB.train()
 	netC.train()
 
-def vanilla_train_target(args, netF, netB, netC, mask, loader):
+def vanilla_train_target(args, netF, netB, netC, mask, loader, loader_val):
     netC.eval()
     for k, v in netC.named_parameters():
         v.requires_grad = False
@@ -416,13 +417,13 @@ def vanilla_train_target(args, netF, netB, netC, mask, loader):
         total_loss.backward()
         optimizer.step()
 
-        if pruner.mask:
+        if mask != 'no mask':
             apply_mask_forward(netF, mask)
 
         if iter_num % interval_iter == 0 or iter_num == max_iter:
             netF.eval()
             netB.eval()
-            acc, _ = cal_acc(loader, netF, netB, netC)
+            acc, _ = cal_acc(loader_val, netF, netB, netC)
             log_str = 'Task: {}, Iter:{}/{}; Accuracy = {:.2f}%'.format(args.dset, iter_num, max_iter, acc)
             print(log_str+'\n')
             netF.train()
