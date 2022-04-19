@@ -86,7 +86,7 @@ class Pruner(MetaPruner):
         grads_abs = []
         for layer in netF.modules():
             if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-                grads_abs.append(torch.abs(layer.weight_mask.grad))
+                grads_abs.append(torch.abs(layer.weight.data))
 
         all_scores = torch.cat([torch.flatten(x) for x in grads_abs])
         norm_factor = torch.sum(all_scores)

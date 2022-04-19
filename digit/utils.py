@@ -43,7 +43,8 @@ def write_result_to_csv(args, **kwargs):
             "stage_pr, "
             "global_pr, "
             "dd_loss, "
-            "best_acc\n "
+            "best_acc, "
+            "num_shot\n "
         )
 
     with open(results, "a+") as f:
@@ -56,7 +57,8 @@ def write_result_to_csv(args, **kwargs):
                 "{stage_pr}, "
                 "{global_pr}, "
                 "{dd_loss}, "
-                "{best_acc:.02f}\n"
+                "{best_acc:.02f}, "
+                "{num_shot}\n"
             ).format(**kwargs)
         )
 

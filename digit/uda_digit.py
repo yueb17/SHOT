@@ -23,6 +23,7 @@ from utils import apply_mask_forward, check_sparsity
 from utils import write_result_to_csv
 from utils import proxy_a_distance, cal_a_dis
 from utils import cal_acc
+import copy
 
 def op_copy(optimizer):
     for param_group in optimizer.param_groups:
@@ -126,6 +127,14 @@ def digit_load(args):
         num_workers=args.worker, drop_last=False)
     dset_loaders["test"] = DataLoader(test_target, batch_size=train_bs*2, shuffle=False, 
         num_workers=args.worker, drop_last=False)
+
+    train_target_copy = copy.deepcopy(train_target)
+    ob_train_target, _ = torch.utils.data.random_split(train_target_copy, [args.num_shot, len(train_target_copy)-args.num_shot])
+    dset_loaders['ob_target'] = DataLoader(ob_train_target, batch_size=train_bs, shuffle=True,
+    	num_workers=args.worker, drop_last=False)
+    # st()
+
+
     return dset_loaders
 
 def train_source(args):
@@ -278,6 +287,7 @@ def train_target(args):
         print("==> Start prune S pretrained model using:", args.pruner_s)
 
         print("==> Check acc before pruning")
+        vanilla_test(args, dset_loaders['source_te'], netF, netB, netC)
         vanilla_test(args, dset_loaders['test'], netF, netB, netC)
 
         print('==> Obtain pruner for source model')
@@ -289,13 +299,23 @@ def train_target(args):
         check_sparsity(netF)
 
         print("==> Check acc just after pruning")
-        vanilla_test(args, dset_loader['test'], netF, netB, netC)
+        vanilla_test(args, dset_loaders['source_te'], netF, netB, netC)
+        vanilla_test(args, dset_loaders['test'], netF, netB, netC)
+
+        print('==> Calculate S-T A-dis: S pretrained pruned model')
+        cal_a_dis(netF, netB, dset_loaders['source_tr'], dset_loaders['target'])
 
     print('==> Finetune T')
-    netF, netB, netC = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['target'], dset_loaders['test'])
+    netF, netB, netC, best_test_acc = vanilla_train_target(args, netF, netB, netC, mask, dset_loaders['ob_target'], dset_loaders['test'])
+
+    vanilla_test(args, dset_loaders['source_te'], netF, netB, netC)
+    vanilla_test(args, dset_loaders['test'], netF, netB, netC)
+
+    print('==> S-T A-dis: T pretrained model')
+    cal_a_dis(netF, netB, dset_loaders['source_tr'], dset_loaders['target'])
 
     if args.pruner_t == 'non':
-        print('NO prune T model')
+        print('NO prune T model and no further finetune')
     else:
         print('==> Start prune pre-pretrained T model')
 
@@ -328,6 +348,7 @@ def train_target(args):
             global_pr=args.global_pr,
             dd_loss=args.dd_loss,
             best_acc=best_test_acc,
+            num_shot=args.num_shot,
             )
 
     return netF, netB, netC
@@ -339,7 +360,7 @@ def pruner_to_prune(args, netF, netB, netC, pruner_name, dset_loaders):
 		pruner.prune()
 	elif pruner_name == 't_snip':
 		print('Using target snip')
-		pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['target'], torch.device("cuda:0"))
+		pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['ob_target'], torch.device("cuda:0"))
 	elif pruner_name == 's_snip':
 		print('Using source snip')
 		pruner.prune(netF, netB, netC, 1-args.global_pr, dset_loaders['source_tr'], torch.device("cuda:0"))
@@ -434,7 +455,7 @@ def vanilla_train_target(args, netF, netB, netC, mask, loader, loader_val):
 
     print('Best test acc:', best_test_acc)
 
-    return netF, netB, netC
+    return netF, netB, netC, best_test_acc
 
 def obtain_label(loader, netF, netB, netC, args, c=None):
     start_test = True
@@ -521,6 +542,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--pruner_t', type=str, default='non', choices=['non', 'l1', 't_snip', 's_snip'])
     parser.add_argument('--supervised_target', action='store_true')
+    parser.add_argument('--num_shot', type=int, default=10)
 
     args = parser.parse_args()
     args.class_num = 10
