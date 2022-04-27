@@ -22,7 +22,7 @@ import pathlib
 from utils import apply_mask_forward, check_sparsity
 from utils import write_result_to_csv
 from utils import proxy_a_distance, cal_a_dis
-from utils import cal_acc
+from utils import cal_acc, cal_loss
 import copy
 
 def op_copy(optimizer):
@@ -291,12 +291,26 @@ def train_target(args):
         vanilla_test(args, dset_loaders['test'], netF, netB, netC)
 
         print('==> Obtain pruner for source model')
-        mask = pruner_to_prune(args, netF, netB, netC, args.pruner_s, dset_loaders)
+        netF_s = copy.deepcopy(netF)
+        netF_t = copy.deepcopy(netF)
+        netF_l = copy.deepcopy(netF)
+
+        mask_s = pruner_to_prune(args, netF_s, netB, netC, 's_snip', dset_loaders)
+        mask_t = pruner_to_prune(args, netF_t, netB, netC, 't_snip', dset_loaders)
+        mask_l = pruner_to_prune(args, netF_l, netB, netC, 'l1', dset_loaders)
 
         print("==> Prune once")
+        st()
         check_sparsity(netF)
-        apply_mask_forward(netF, mask)
+        print('Full S model', cal_loss(netF, netB, netC, dset_loaders, args))
+        apply_mask_forward(netF_s, mask_s)
+        apply_mask_forward(netF_t, mask_t)
+        apply_mask_forward(netF_l, mask_l)
         check_sparsity(netF)
+        print('Pruned S model', cal_loss(netF_s, netB, netC, dset_loaders, args))
+        print('Pruned S model', cal_loss(netF_t, netB, netC, dset_loaders, args))
+        print('Pruned S model', cal_loss(netF_l, netB, netC, dset_loaders, args))
+        st()
 
         print("==> Check acc just after pruning")
         vanilla_test(args, dset_loaders['source_te'], netF, netB, netC)

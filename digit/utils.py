@@ -161,6 +161,22 @@ def proxy_a_distance(source_X, target_X, verbose=False):
     return 2 * (1. - 2 * best_risk)
 
 
+def cal_loss(netF, netB, netC, dset_loaders, args):
+    loader = dset_loaders['ob_target']
+    iter_test = iter(loader)
+    total_loss = torch.tensor(0.0).cuda()
+    for i in range(len(loader)):
+        data = iter_test.next()
+        inputs = data[0]
+        labels = data[1]
+        inputs = inputs.cuda()
+        outputs = netC(netB(netF(inputs)))
+        label_loss = loss.CrossEntropyLabelSmooth(num_classes=args.class_num, epsilon=args.smooth)(outputs, labels)
+        total_loss += label_loss
+
+    return total_loss
+
+
 
 
 
